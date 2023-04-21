@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "spot-analyzer"
+version = "0.1.0"
+description = ""
+authors = ["Kenton Van Peursem <kentonvanp@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+matplotlib = "^3.7.1"
+boto3 = "^1.26.117"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
