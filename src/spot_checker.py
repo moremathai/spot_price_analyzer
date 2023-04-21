@@ -1,12 +1,13 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
 import boto3
 import matplotlib.pyplot as plt
 import sqlite3
-
+import numpy as np
+import pytz
 
 @dataclass
 class SpotPrice:
@@ -86,7 +87,40 @@ class SpotPricesManager:
         self.cursor.execute(query, params)
 
         rows = self.cursor.fetchall()
-        return [SpotPrice(*row) for row in rows]
+        return [SpotPrice(
+            instance_type=row[0],
+            availability_zone=row[1],
+            price=Decimal(row[2]),
+            timestamp=datetime.strptime(row[3], "%Y-%m-%d %H:%M:%S%z")
+            ) for row in rows]
+
+    def get_spot_price_movement(self, instance_type: str, availability_zone: str) -> Decimal:
+        """
+        Get the spot price movement for a given instance type and availability zone.
+        """
+        spot_prices = self.get_spot_prices(instance_type, availability_zone)
+
+        # compute the averge between the most recent week and the previous week
+        w1 = (datetime.now() - timedelta(days=7)).astimezone(pytz.utc)
+        w0 = w1 - timedelta(days=7)
+
+        current_week_prices = list(filter(lambda x: w1 < x.timestamp, spot_prices))
+        previous_week_prices = list(
+            filter(
+                lambda x: w0 < x.timestamp < w1,
+                spot_prices,
+            )
+        )
+
+        current_week_avg = np.mean(
+            [spot_price.price for spot_price in current_week_prices]
+        )
+        previous_week_avg = np.mean(
+            [spot_price.price for spot_price in previous_week_prices]
+        )
+
+        # compute percent change
+        return (current_week_avg - previous_week_avg) / previous_week_avg
 
     def __del__(self):
         """
@@ -157,6 +191,7 @@ if __name__ == "__main__":
     # split the instance types into the family name and types
     instance_families = ["m5zn", "z1d"]
     instance_sizes = ["3xlarge", "6xlarge", "12xlarge"]
+    availability_zone = "us-east-1d"
 
     # create a list of all the instance types
     all_instance_types = [
@@ -180,11 +215,13 @@ if __name__ == "__main__":
         optimal_type = ""
         for i_type in instance_types:
             price = spot_manager.get_spot_prices(
-                i_type, availability_zone="us-east-1d", limit=1
+                i_type, availability_zone=availability_zone, limit=1
             )[0].price
             if price < min_price:
                 min_price = price
                 optimal_type = i_type
+
+        price_movement = float(spot_manager.get_spot_price_movement(optimal_type, availability_zone=availability_zone))
         print(
-            f"{optimal_type} is the cheapest instance type in the {i_size} category at ${min_price}"
+            f"{optimal_type} is the cheapest instance type in the {i_size} category at ${min_price:.2f}: {price_movement:.3%} change in price over the last week."
         )
