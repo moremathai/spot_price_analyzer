@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import List, Optional
 
 import boto3
@@ -13,7 +12,7 @@ import pytz
 class SpotPrice:
     instance_type: str
     availability_zone: str
-    price: Decimal
+    price: float
     timestamp: datetime
 
 
@@ -90,11 +89,11 @@ class SpotPricesManager:
         return [SpotPrice(
             instance_type=row[0],
             availability_zone=row[1],
-            price=Decimal(row[2]),
+            price=row[2],
             timestamp=datetime.strptime(row[3], "%Y-%m-%d %H:%M:%S%z")
             ) for row in rows]
 
-    def get_spot_price_movement(self, instance_type: str, availability_zone: str) -> Decimal:
+    def get_spot_price_movement(self, instance_type: str, availability_zone: str) -> float:
         """
         Get the spot price movement for a given instance type and availability zone.
         """
@@ -217,11 +216,10 @@ if __name__ == "__main__":
             price = spot_manager.get_spot_prices(
                 i_type, availability_zone=availability_zone, limit=1
             )[0].price
+            price_movement = spot_manager.get_spot_price_movement(i_type, availability_zone=availability_zone)
+            print(f"- {i_type} is ${price:.3f} ({price_movement:.2%}).")
             if price < min_price:
                 min_price = price
                 optimal_type = i_type
 
-        price_movement = float(spot_manager.get_spot_price_movement(optimal_type, availability_zone=availability_zone))
-        print(
-            f"{optimal_type} is the cheapest instance type in the {i_size} category at ${min_price:.2f}: {price_movement:.3%} change in price over the last week."
-        )
+        print(f"{optimal_type} is the cheapest instance type in the {i_size} category.")
